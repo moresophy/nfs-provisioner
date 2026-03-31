@@ -13,3 +13,5 @@ keywords:
 - provisioner
 maintainers:
 - name: moresophy
+- name: Claude (Anthropic)
+  url: https://claude.ai/code

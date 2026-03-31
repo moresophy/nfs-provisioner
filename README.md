@@ -211,6 +211,7 @@ Required repository secrets: `REGISTRY_USERNAME`, `REGISTRY_TOKEN`, `DOCKER_IMAG
 |---|---|---|
 | Sebastian Broers | [@natorus87](https://github.com/natorus87) | sebastian.broers@moresophy.com |
 | Moresophy GmbH | [@moresophy](https://github.com/moresophy) | — |
+| Claude (Anthropic) | [claude.ai/code](https://claude.ai/code) | — |
 
 ## License
 
