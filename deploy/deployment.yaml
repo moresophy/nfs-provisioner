@@ -21,7 +21,7 @@ spec:
       serviceAccountName: nfs-provisioner
       containers:
         - name: nfs-provisioner
-          image: moresophy/nfs-provisioner:v4.0.3
+          image: moresophy/nfs-provisioner:v4.0.4
           volumeMounts:
             - name: nfs-provisioner-root
               mountPath: /persistentvolumes
