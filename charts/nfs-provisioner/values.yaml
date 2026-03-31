@@ -3,7 +3,7 @@ strategyType: Recreate
 
 image:
   repository: moresophy/nfs-provisioner
-  tag: v4.0.6
+  tag: v4.0.7
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 
