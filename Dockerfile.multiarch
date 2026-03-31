@@ -13,6 +13,13 @@ WORKDIR ${APP_FOLDER}
 # This avoids relying on the vendor directory which may be incomplete.
 RUN go mod download
 
+# Apply patch: vendored sig-storage-lib-external-provisioner uses the deprecated
+# "endpoints" resource lock which was removed in client-go v0.35+. Overwrite the
+# cached file with our patched version that uses LeasesResourceLock instead.
+RUN CACHED=$(go env GOPATH)/pkg/mod/sigs.k8s.io/sig-storage-lib-external-provisioner/v6@v6.3.0/controller/controller.go && \
+    chmod u+w "$CACHED" && \
+    cp ${APP_FOLDER}/vendor/sigs.k8s.io/sig-storage-lib-external-provisioner/v6/controller/controller.go "$CACHED"
+
 # Compile independent executable using go wrapper from xx:golang
 ARG TARGETPLATFORM
 RUN CGO_ENABLED=0 xx-go build -mod=mod -a -ldflags '-extldflags "-static"' -o /bin/nfs-provisioner ./cmd/nfs-provisioner
