@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ template "nfs-subdir-external-provisioner.fullname" . }}
+  name: {{ template "nfs-provisioner.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nfs-subdir-external-provisioner.labels" . | nindent 4 }}
+    {{- include "nfs-provisioner.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
     type: {{ .Values.strategyType }}
   selector:
     matchLabels:
-      {{- include "nfs-subdir-external-provisioner.selectorLabels" . | nindent 6 }}
+      {{- include "nfs-provisioner.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -22,9 +22,9 @@ spec:
         scheduler.alpha.kubernetes.io/tolerations: '{{ toJson .Values.tolerations }}'
       {{- end }}
       labels:
-        {{- include "nfs-subdir-external-provisioner.podLabels" . | nindent 8 }}
+        {{- include "nfs-provisioner.podLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ template "nfs-subdir-external-provisioner.serviceAccountName" . }}
+      serviceAccountName: {{ template "nfs-provisioner.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- if .Values.nodeSelector }}
@@ -53,7 +53,7 @@ spec:
               mountPath: /persistentvolumes
           env:
             - name: PROVISIONER_NAME
-              value: {{ template "nfs-subdir-external-provisioner.provisionerName" . }}
+              value: {{ template "nfs-provisioner.provisionerName" . }}
             - name: NFS_SERVER
               value: {{ .Values.nfs.server }}
             - name: NFS_PATH
@@ -72,13 +72,21 @@ spec:
           resources:
 {{ toYaml . | indent 12 }}
           {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+{{ toYaml . | indent 12 }}
+          {{- end }}
       volumes:
         - name: {{ .Values.nfs.volumeName }}
 {{- if .Values.buildMode }}
           emptyDir: {}
 {{- else if .Values.nfs.mountOptions }}
           persistentVolumeClaim:
-            claimName: pvc-{{ template "nfs-subdir-external-provisioner.fullname" . }}
+            claimName: pvc-{{ template "nfs-provisioner.fullname" . }}
 {{- else }}
           nfs:
             server: {{ .Values.nfs.server }}

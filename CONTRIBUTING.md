@@ -1,26 +1,42 @@
-# Contributing Guidelines
+# Contributing to NFS-PROVISIONER
 
-Welcome to Kubernetes. We are excited about the prospect of you joining our [community](https://git.k8s.io/community)! The Kubernetes community abides by the CNCF [code of conduct](code-of-conduct.md). Here is an excerpt:
+Thank you for your interest in contributing to NFS-PROVISIONER, maintained by [Moresophy GmbH](https://github.com/moresophy).
 
-_As contributors and maintainers of this project, and in the interest of fostering an open and welcoming community, we pledge to respect all people who contribute through reporting issues, posting feature requests, updating documentation, submitting pull requests or patches, and other activities._
+## How to Contribute
 
-## Getting Started
+1. **Fork** the repository at https://github.com/moresophy/nfs-provisioner
+2. **Create a branch** for your change: `git checkout -b fix/my-fix`
+3. **Make your changes** and ensure the code compiles: `make build`
+4. **Run checks**: `make test`
+5. **Submit a pull request** against the `master` branch
 
-We have full documentation on how to get started contributing here:
+## Code Style
 
-<!---
-If your repo has certain guidelines for contribution, put them here ahead of the general k8s resources
--->
+- Follow standard Go formatting: `gofmt -w .`
+- Run `go vet ./...` before submitting
+- Keep changes focused — one PR per fix/feature
 
-- [Contributor License Agreement](https://git.k8s.io/community/CLA.md) Kubernetes projects require that you sign a Contributor License Agreement (CLA) before we can accept your pull requests
-- [Kubernetes Contributor Guide](https://git.k8s.io/community/contributors/guide) - Main contributor documentation, or you can just jump directly to the [contributing section](https://git.k8s.io/community/contributors/guide#contributing)
-- [Contributor Cheat Sheet](https://git.k8s.io/community/contributors/guide/contributor-cheatsheet) - Common resources for existing developers
+## Reporting Issues
 
-## Mentorship
+Please use the [GitHub issue tracker](https://github.com/moresophy/nfs-provisioner/issues).
 
-- [Mentoring Initiatives](https://git.k8s.io/community/mentoring) - We have a diverse set of mentorship programs available that are always looking for volunteers!
+Include:
+- Kubernetes version
+- NFS server type and version
+- Provisioner logs (`kubectl logs -n <namespace> deployment/nfs-provisioner`)
+- Steps to reproduce
 
-## Contact Information
+## Maintainers
 
-- [Slack](https://kubernetes.slack.com/messages/sig-storage)
-- [Mailing List](https://groups.google.com/forum/#!forum/kubernetes-sig-storage)
+| Name | GitHub |
+|---|---|
+| Sebastian Broers | [@natorus87](https://github.com/natorus87) |
+| Moresophy GmbH | [@moresophy](https://github.com/moresophy) |
+
+## Upstream
+
+This project is a fork of [kubernetes-sigs/nfs-subdir-external-provisioner](https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner). Bug fixes that are applicable upstream are encouraged to be submitted there as well.
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the [Apache 2.0 License](LICENSE).

@@ -3,7 +3,7 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   labels:
-    {{- include "nfs-subdir-external-provisioner.labels" . | nindent 4 }}
+    {{- include "nfs-provisioner.labels" . | nindent 4 }}
   name: {{ .Values.storageClass.name }}
   annotations:
   {{- if .Values.storageClass.defaultClass }}
@@ -12,7 +12,7 @@ metadata:
   {{- with .Values.storageClass.annotations }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
-provisioner: {{ template "nfs-subdir-external-provisioner.provisionerName" . }}
+provisioner: {{ template "nfs-provisioner.provisionerName" . }}
 allowVolumeExpansion: {{ .Values.storageClass.allowVolumeExpansion }}
 reclaimPolicy: {{ .Values.storageClass.reclaimPolicy }}
 volumeBindingMode: {{ .Values.storageClass.volumeBindingMode }}

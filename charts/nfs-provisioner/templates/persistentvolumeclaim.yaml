@@ -2,10 +2,10 @@
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
-  name: pvc-{{ template "nfs-subdir-external-provisioner.fullname" . }}
+  name: pvc-{{ template "nfs-provisioner.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nfs-subdir-external-provisioner.labels" . | nindent 4 }}
+    {{- include "nfs-provisioner.labels" . | nindent 4 }}
 spec:
   accessModes:
     - {{ .Values.storageClass.accessModes }}
@@ -13,7 +13,7 @@ spec:
   storageClassName: ""
   selector:
     matchLabels:
-      nfs-subdir-external-provisioner: {{ template "nfs-subdir-external-provisioner.fullname" . }}
+      nfs-provisioner: {{ template "nfs-provisioner.fullname" . }}
   resources:
     requests:
       storage: 10Mi

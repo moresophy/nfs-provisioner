@@ -1,4 +1,5 @@
 resources:
   - class.yaml
   - rbac.yaml
+  - provisioner-nfs-pv.yaml
   - deployment.yaml

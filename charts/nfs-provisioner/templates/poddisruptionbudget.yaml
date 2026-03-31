@@ -3,12 +3,12 @@ apiVersion: {{ template "podDisruptionBudget.apiVersion" . }}
 kind: PodDisruptionBudget
 metadata:
   labels:
-    {{- include "nfs-subdir-external-provisioner.labels" . | nindent 4 }}
-  name: {{ template "nfs-subdir-external-provisioner.fullname" . }}
+    {{- include "nfs-provisioner.labels" . | nindent 4 }}
+  name: {{ template "nfs-provisioner.fullname" . }}
   namespace: {{ .Release.Namespace }}
 spec:
   maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable | default 1 }}
   selector:
     matchLabels:
-      {{- include "nfs-subdir-external-provisioner.selectorLabels" . | nindent 6 }}
+      {{- include "nfs-provisioner.selectorLabels" . | nindent 6 }}
 {{- end }}

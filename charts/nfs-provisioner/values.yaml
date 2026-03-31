@@ -2,8 +2,8 @@ replicaCount: 1
 strategyType: Recreate
 
 image:
-  repository: registry.k8s.io/sig-storage/nfs-subdir-external-provisioner
-  tag: v4.0.2
+  repository: moresophy/nfs-provisioner
+  tag: v4.0.3
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 
@@ -11,7 +11,10 @@ nfs:
   server:
   path: /nfs-storage
   mountOptions:
-  volumeName: nfs-subdir-external-provisioner-root
+    - soft
+    - timeo=30
+    - retrans=3
+  volumeName: nfs-provisioner-root
   defaultMode: "777"
   defaultUid: "0"
   defaultGid: "0"
@@ -31,7 +34,7 @@ storageClass:
 
   # Set a StorageClass name
   # Ignored if storageClass.create is false
-  name: nfs-client
+  name: nfs
 
   # Allow volume to be expanded dynamically
   allowVolumeExpansion: true
@@ -69,11 +72,6 @@ rbac:
   # Specifies whether RBAC resources should be created
   create: true
 
-# If true, create & use Pod Security Policy resources
-# https://kubernetes.io/docs/concepts/policy/pod-security-policy/
-podSecurityPolicy:
-  enabled: false
-
 # Deployment pod annotations
 podAnnotations: {}
 
@@ -102,6 +100,22 @@ resources: {}
   # requests:
   #  cpu: 100m
   #  memory: 128Mi
+
+livenessProbe:
+  exec:
+    command:
+      - ls
+      - /persistentvolumes
+  initialDelaySeconds: 10
+  periodSeconds: 30
+
+readinessProbe:
+  exec:
+    command:
+      - ls
+      - /persistentvolumes
+  initialDelaySeconds: 5
+  periodSeconds: 10
 
 nodeSelector: {}
 

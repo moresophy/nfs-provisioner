@@ -27,8 +27,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 
 	storage "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -56,9 +56,11 @@ type pvcMetadata struct {
 	data        map[string]string
 	labels      map[string]string
 	annotations map[string]string
+	pvData      map[string]string
 }
 
 var pattern = regexp.MustCompile(`\${\.PVC\.((labels|annotations)\.(.*?)|.*?)}`)
+var pvPattern = regexp.MustCompile(`\${\.PV\.(.*?)}`)
 
 func (meta *pvcMetadata) stringParser(str string) string {
 	result := pattern.FindAllStringSubmatch(str, -1)
@@ -73,6 +75,11 @@ func (meta *pvcMetadata) stringParser(str string) string {
 		}
 	}
 
+	pvResult := pvPattern.FindAllStringSubmatch(str, -1)
+	for _, r := range pvResult {
+		str = strings.ReplaceAll(str, r[0], meta.pvData[r[1]])
+	}
+
 	return str
 }
 
@@ -83,11 +90,27 @@ const (
 
 var _ controller.Provisioner = &nfsProvisioner{}
 
+// fsExec runs a filesystem operation in a separate goroutine and returns an
+// error if the context is cancelled or times out before the operation finishes.
+// This prevents the provisioner from hanging indefinitely on a stalled NFS mount.
+// The goroutine itself may remain blocked until the mount recovers — Go cannot
+// interrupt a kernel-level blocking syscall — but the provisioner stays responsive.
+func fsExec(ctx context.Context, op func() error) error {
+	errc := make(chan error, 1)
+	go func() { errc <- op() }()
+	select {
+	case err := <-errc:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("filesystem operation did not complete: %w", ctx.Err())
+	}
+}
+
 func (p *nfsProvisioner) Provision(ctx context.Context, options controller.ProvisionOptions) (*v1.PersistentVolume, controller.ProvisioningState, error) {
 	if options.PVC.Spec.Selector != nil {
 		return nil, controller.ProvisioningFinished, fmt.Errorf("claim Selector is not supported")
 	}
-	glog.V(4).Infof("nfs provisioner: VolumeOptions %v", options)
+	klog.V(4).Infof("nfs provisioner: VolumeOptions %v", options)
 
 	pvcNamespace := options.PVC.Namespace
 	pvcName := options.PVC.Name
@@ -101,6 +124,9 @@ func (p *nfsProvisioner) Provision(ctx context.Context, options controller.Provi
 		},
 		labels:      options.PVC.Labels,
 		annotations: options.PVC.Annotations,
+		pvData: map[string]string{
+			"name": options.PVName,
+		},
 	}
 
 	fullPath := filepath.Join(mountPath, pvName)
@@ -125,13 +151,12 @@ func (p *nfsProvisioner) Provision(ctx context.Context, options controller.Provi
 			return nil, controller.ProvisioningFinished, fmt.Errorf("invalid directoryMode %s: %v", pvcMode, err)
 		}
 	}
-	glog.V(4).Infof("creating path %s", fullPath)
-	if err := os.MkdirAll(fullPath, mode); err != nil {
+	klog.V(4).Infof("creating path %s", fullPath)
+	if err := fsExec(ctx, func() error { return os.MkdirAll(fullPath, mode) }); err != nil {
 		return nil, controller.ProvisioningFinished, errors.New("unable to create directory to provision new pv: " + err.Error())
 	}
-	err := os.Chmod(fullPath, mode)
-	if err != nil {
-		return nil, "", err
+	if err := fsExec(ctx, func() error { return os.Chmod(fullPath, mode) }); err != nil {
+		return nil, controller.ProvisioningFinished, err
 	}
 
 	// Check if the PVC has an annotation requesting a specific UID and GID. Again, fallback to defaults if not.
@@ -143,7 +168,7 @@ func (p *nfsProvisioner) Provision(ctx context.Context, options controller.Provi
 		if err != nil {
 			// No real point in returning an error here as the dir will have already been created as root:root
 			// log the error and continue with the default uid
-			glog.Errorf("invalid directoryUid %s: %v", pvcUid, err)
+			klog.Errorf("invalid directoryUid %s: %v", pvcUid, err)
 			uid = p.defaultUid
 		}
 	}
@@ -155,13 +180,12 @@ func (p *nfsProvisioner) Provision(ctx context.Context, options controller.Provi
 		if err != nil {
 			// No real point in returning an error here as the dir will have already been created as root:root
 			// log the error and continue with the default gid
-			glog.Errorf("invalid directoryGid %s: %v", pvcGid, err)
+			klog.Errorf("invalid directoryGid %s: %v", pvcGid, err)
 			gid = p.defaultGid
 		}
 	}
-	err = os.Chown(fullPath, uid, gid)
-	if err != nil {
-		return nil, "", err
+	if err := fsExec(ctx, func() error { return os.Chown(fullPath, uid, gid) }); err != nil {
+		return nil, controller.ProvisioningFinished, err
 	}
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -191,10 +215,16 @@ func (p *nfsProvisioner) Delete(ctx context.Context, volume *v1.PersistentVolume
 	basePath := filepath.Base(path)
 	oldPath := strings.Replace(path, p.path, mountPath, 1)
 
-	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
-		glog.Warningf("path %s does not exist, deletion skipped", oldPath)
+	if err := fsExec(ctx, func() error {
+		_, err := os.Stat(oldPath)
+		return err
+	}); os.IsNotExist(err) {
+		klog.Warningf("path %s does not exist, deletion skipped", oldPath)
 		return nil
+	} else if err != nil {
+		return err
 	}
+
 	// Get the storage class for this volume.
 	storageClass, err := p.getClassForVolume(ctx, volume)
 	if err != nil {
@@ -207,7 +237,7 @@ func (p *nfsProvisioner) Delete(ctx context.Context, volume *v1.PersistentVolume
 	onDelete := storageClass.Parameters["onDelete"]
 	switch onDelete {
 	case "delete":
-		return os.RemoveAll(oldPath)
+		return fsExec(ctx, func() error { return os.RemoveAll(oldPath) })
 	case "retain":
 		return nil
 	}
@@ -222,13 +252,13 @@ func (p *nfsProvisioner) Delete(ctx context.Context, volume *v1.PersistentVolume
 			return err
 		}
 		if !archiveBool {
-			return os.RemoveAll(oldPath)
+			return fsExec(ctx, func() error { return os.RemoveAll(oldPath) })
 		}
 	}
 
 	archivePath := filepath.Join(mountPath, "archived-"+basePath)
-	glog.V(4).Infof("archiving path %s to %s", oldPath, archivePath)
-	return os.Rename(oldPath, archivePath)
+	klog.V(4).Infof("archiving path %s to %s", oldPath, archivePath)
+	return fsExec(ctx, func() error { return os.Rename(oldPath, archivePath) })
 }
 
 // getClassForVolume returns StorageClass.
@@ -279,33 +309,33 @@ func getIdFromString(id string) (int, error) {
 }
 
 func main() {
+	klog.InitFlags(nil)
 	flag.Parse()
-	flag.Set("logtostderr", "true")
 
 	server := os.Getenv("NFS_SERVER")
 	if server == "" {
-		glog.Fatal("NFS_SERVER not set")
+		klog.Fatal("NFS_SERVER not set")
 	}
 	path := os.Getenv("NFS_PATH")
 	if path == "" {
-		glog.Fatal("NFS_PATH not set")
+		klog.Fatal("NFS_PATH not set")
 	}
 	provisionerName := os.Getenv(provisionerNameKey)
 	if provisionerName == "" {
-		glog.Fatalf("environment variable %s is not set! Please set it.", provisionerNameKey)
+		klog.Fatalf("environment variable %s is not set! Please set it.", provisionerNameKey)
 	}
 	// Get the default mode, uid, and gid from environment variables
 	mode, err := getModeFromString(os.Getenv("NFS_DEFAULT_MODE"))
 	if err != nil {
-		glog.Fatalf("Failed to parse NFS_DEFAULT_MODE: %v", err)
+		klog.Fatalf("Failed to parse NFS_DEFAULT_MODE: %v", err)
 	}
 	uid, err := getIdFromString(os.Getenv("NFS_DEFAULT_UID"))
 	if err != nil {
-		glog.Fatalf("Failed to parse NFS_DEFAULT_UID: %v", err)
+		klog.Fatalf("Failed to parse NFS_DEFAULT_UID: %v", err)
 	}
 	gid, err := getIdFromString(os.Getenv("NFS_DEFAULT_GID"))
 	if err != nil {
-		glog.Fatalf("Failed to parse NFS_DEFAULT_GID: %v", err)
+		klog.Fatalf("Failed to parse NFS_DEFAULT_GID: %v", err)
 	}
 	kubeconfig := os.Getenv("KUBECONFIG")
 	var config *rest.Config
@@ -315,7 +345,7 @@ func main() {
 		var err error
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
-			glog.Fatalf("Failed to create kubeconfig: %v", err)
+			klog.Fatalf("Failed to create kubeconfig: %v", err)
 		}
 	} else {
 		// Create an InClusterConfig and use it to create a client for the controller
@@ -323,19 +353,19 @@ func main() {
 		var err error
 		config, err = rest.InClusterConfig()
 		if err != nil {
-			glog.Fatalf("Failed to create config: %v", err)
+			klog.Fatalf("Failed to create config: %v", err)
 		}
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		glog.Fatalf("Failed to create client: %v", err)
+		klog.Fatalf("Failed to create client: %v", err)
 	}
 
 	// The controller needs to know what the server version is because out-of-tree
 	// provisioners aren't officially supported until 1.5
 	serverVersion, err := clientset.Discovery().ServerVersion()
 	if err != nil {
-		glog.Fatalf("Error getting server version: %v", err)
+		klog.Fatalf("Error getting server version: %v", err)
 	}
 
 	leaderElection := true
@@ -343,7 +373,7 @@ func main() {
 	if leaderElectionEnv != "" {
 		leaderElection, err = strconv.ParseBool(leaderElectionEnv)
 		if err != nil {
-			glog.Fatalf("Unable to parse ENABLE_LEADER_ELECTION env var: %v", err)
+			klog.Fatalf("Unable to parse ENABLE_LEADER_ELECTION env var: %v", err)
 		}
 	}
 
