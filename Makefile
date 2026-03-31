@@ -25,7 +25,7 @@ include release-tools/build.make
 release:
 	@test -n "$(VERSION)" || (echo "Usage: make release VERSION=x.y.z" && exit 1)
 	@bash scripts/bump-version.sh $(VERSION)
-	git add VERSION charts/nfs-provisioner/Chart.yaml charts/nfs-provisioner/values.yaml deploy/deployment.yaml
+	git add -u
 	git commit -m "chore: bump version to $(VERSION)"
 	git tag gh-v$(VERSION)
 	git push
