@@ -1,9 +1,9 @@
 apiVersion: v1
-appVersion: 4.0.5
+appVersion: 4.0.6
 description: NFS-PROVISIONER is a dynamic Kubernetes storage provisioner that automatically creates subdirectories on an existing NFS server for PersistentVolumeClaims.
 name: nfs-provisioner
 home: https://github.com/moresophy/nfs-provisioner
-version: 4.0.5
+version: 4.0.6
 kubeVersion: ">=1.21.0-0"
 sources:
 - https://github.com/moresophy/nfs-provisioner
