@@ -5,3 +5,7 @@ metadata:
 provisioner: moresophy/nfs-provisioner # must match PROVISIONER_NAME in deployment env
 parameters:
   archiveOnDelete: "false"
+mountOptions:
+  - soft
+  - timeo=30
+  - retrans=3
